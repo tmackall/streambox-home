@@ -102,6 +102,12 @@ alias fgrep='fgrep --color=auto'
 alias egrep='egrep --color=auto'
 
 ###################
+# Aliases - Tailscale / SSH
+alias co='ssh tmackall@bexley-streambox'   # CO house (Raspbian Pi)
+alias inn='ssh tmackall@mackall-niwot'      # IN house (Ubuntu Pi)
+alias ts='tailscale status'
+
+###################
 # Aliases - Git
 ###################
 alias gs='git status'
