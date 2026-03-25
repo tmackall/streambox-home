@@ -103,8 +103,8 @@ alias egrep='egrep --color=auto'
 
 ###################
 # Aliases - Tailscale / SSH
-alias co='ssh tmackall@bexley-streambox'   # CO house (Raspbian Pi)
-alias inn='ssh tmackall@mackall-niwot'      # IN house (Ubuntu Pi)
+alias co='ssh tmackall@mackall-niwot'        # CO house (Ubuntu Pi)
+alias inn='ssh tmackall@bexley-streambox'   # IN house (Raspbian Pi)
 alias ts='tailscale status'
 
 ###################
