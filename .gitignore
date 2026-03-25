@@ -60,3 +60,15 @@ yy
 private/
 dashboards/
 .terraform.d/
+.gitsvcrc
+.Xauthority
+.xsession-errors
+.xsession-errors.old
+.sudo_as_admin_successful
+.nvm/
+.cache/
+projects/
+papajohns-ramp-plan.docx
+Desktop/
+resume/
+taxes/

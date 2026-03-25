@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # update-codeowners.sh - Update CODEOWNERS file(s) in a repo:
-#   Remove: tom-mackall_ukg, jose-cartaya_ukg, jorge-suarez_ukg
+#   Remove: tom-mackall_ukg, jose-cartaya_ukg, jorge-suarez_ukg, metehan-diziog_ukg, vladimir-sutskever_ukg
 #   Add:    brandon-foote_ukg (to any line where a removed person appeared)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/gitRepoUtils/lib/common.sh"
 
 FEATURE_BRANCH="feature/codeowner-update"
-REMOVE_USERS=("tom-mackall_ukg" "jose-cartaya_ukg" "jorge-suarez_ukg")
+REMOVE_USERS=("tom-mackall_ukg" "jose-cartaya_ukg" "jorge-suarez_ukg" "metehan-diziog_ukg" "vladimir-sutskever_ukg")
 ADD_USER="brandon-foote_ukg"
 
 usage() {
@@ -133,14 +133,16 @@ git checkout "$DEFAULT_BRANCH" --quiet || { print_error "Failed to checkout $DEF
 print_info "Pulling latest from origin/$DEFAULT_BRANCH..."
 git pull origin "$DEFAULT_BRANCH" --quiet || { print_error "git pull failed"; exit 1; }
 
-# -- 3. Create / reset feature branch ---------------------------------------
+# -- 3. Delete existing feature branch (local + remote) then recreate -------
 if git show-ref --verify --quiet "refs/heads/$FEATURE_BRANCH"; then
-    print_warning "Branch '$FEATURE_BRANCH' already exists locally — resetting to $DEFAULT_BRANCH."
-    git checkout "$FEATURE_BRANCH" --quiet
-    git reset --hard "$DEFAULT_BRANCH" --quiet
-else
-    git checkout -b "$FEATURE_BRANCH" --quiet
+    print_info "Deleting local branch '$FEATURE_BRANCH'..."
+    git branch -D "$FEATURE_BRANCH" --quiet
 fi
+if git ls-remote --exit-code --heads origin "$FEATURE_BRANCH" >/dev/null 2>&1; then
+    print_info "Deleting remote branch 'origin/$FEATURE_BRANCH'..."
+    git push origin --delete "$FEATURE_BRANCH" --quiet
+fi
+git checkout -b "$FEATURE_BRANCH" --quiet
 print_success "On branch: $FEATURE_BRANCH"
 
 # -- 4. Find and edit CODEOWNERS files --------------------------------------
@@ -176,7 +178,7 @@ git add "${CODEOWNERS_FILES[@]}"
 git commit -m "$(cat <<'EOF'
 chore: update CODEOWNERS
 
-Remove tom-mackall_ukg, jose-cartaya_ukg, jorge-suarez_ukg.
+Remove tom-mackall_ukg, jose-cartaya_ukg, jorge-suarez_ukg, metehan-diziog_ukg, vladimir-sutskever_ukg.
 Add brandon-foote_ukg to any rules that previously listed a removed owner.
 EOF
 )"
@@ -185,5 +187,37 @@ EOF
 print_info "Pushing $FEATURE_BRANCH to origin..."
 git push origin "$FEATURE_BRANCH" --force-with-lease
 
-print_success "Done! Branch '$FEATURE_BRANCH' pushed to origin."
-print_info "Create a PR when ready: gh pr create --base $DEFAULT_BRANCH"
+# -- 7. Create PR via service account ----------------------------------------
+GITSVCRC="$HOME/.gitsvcrc"
+if [[ ! -f "$GITSVCRC" ]]; then
+    print_warning "~/.gitsvcrc not found — skipping PR creation."
+    print_info "Create a PR manually: gh pr create --base $DEFAULT_BRANCH"
+    exit 0
+fi
+
+# Source only to pick up GH_TOKEN (suppress other side-effects quietly)
+GH_TOKEN=$(grep -E '^export GH_TOKEN=' "$GITSVCRC" | tail -1 | sed 's/export GH_TOKEN=//')
+if [[ -z "$GH_TOKEN" ]]; then
+    print_warning "GH_TOKEN not found in ~/.gitsvcrc — skipping PR creation."
+    exit 0
+fi
+
+REPO=$(basename "$REPO_DIR")
+PR_TITLE="chore: update CODEOWNERS"
+PR_BODY="Remove tom-mackall_ukg, jose-cartaya_ukg, jorge-suarez_ukg, metehan-diziog_ukg, vladimir-sutskever_ukg.\nAdd brandon-foote_ukg to any rules that previously listed a removed owner."
+PR_URL="https://api.github.com/repos/UKGEPIC/$REPO/pulls"
+
+print_info "Creating PR: $FEATURE_BRANCH -> $DEFAULT_BRANCH"
+RESPONSE=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+    -X POST \
+    -d "{\"title\":\"$PR_TITLE\",\"body\":\"$PR_BODY\",\"head\":\"$FEATURE_BRANCH\",\"base\":\"$DEFAULT_BRANCH\"}" \
+    "$PR_URL")
+
+PR_HTML_URL=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('html_url',''))" 2>/dev/null)
+
+if [[ -n "$PR_HTML_URL" ]]; then
+    print_success "PR created: $PR_HTML_URL"
+else
+    print_error "PR creation may have failed. API response:"
+    echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
+fi

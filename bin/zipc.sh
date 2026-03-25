@@ -4,6 +4,9 @@
 # Usage: create_zip.sh [options] <source_directory>
 #   -o, --output <n>    Base name for zip file (default: source directory name)
 #   -e, --exclude <pattern>    Directory or file pattern to exclude (can be used multiple times)
+#   --no-git               Exclude .git directory
+#   --no-binary            Exclude common non-ASCII/binary files (images, fonts, etc.)
+#   --text-only            Shorthand for --no-git --no-binary
 #   -h, --help             Show this help message
 
 set -euo pipefail
@@ -12,12 +15,17 @@ set -euo pipefail
 BASE_NAME=""
 EXCLUDE_PATTERNS=()
 SOURCE_DIR=""
+SKIP_GIT=false
+SKIP_BINARY=false
 
 # Always exclude these patterns
-DEFAULT_EXCLUDES=(".git" "node_modules")
+DEFAULT_EXCLUDES=("node_modules")
 
 # Always exclude these file patterns (binary/build artifacts)
 DEFAULT_FILE_EXCLUDES=("*.class" "*.jar" "*.war" "*.ear" "*.o" "*.so" "*.dylib" "*.a" "*.dll" "*.exe" "*.pyc" "*.pyo" "*.zip" "*.tar" "*.gz" "*.bz2" "*.xz" "*.rar" "*.7z")
+
+# Non-ASCII/binary file patterns (enabled with --no-binary or --text-only)
+BINARY_FILE_EXCLUDES=("*.png" "*.jpg" "*.jpeg" "*.gif" "*.bmp" "*.ico" "*.svg" "*.webp" "*.tiff" "*.tif" "*.mp3" "*.mp4" "*.avi" "*.mov" "*.wmv" "*.flv" "*.wav" "*.ogg" "*.webm" "*.pdf" "*.doc" "*.docx" "*.xls" "*.xlsx" "*.ppt" "*.pptx" "*.ttf" "*.otf" "*.woff" "*.woff2" "*.eot" "*.db" "*.sqlite" "*.sqlite3" "*.bin" "*.dat" "*.enc" "*.p12" "*.pfx" "*.pem" "*.der" "*.DS_Store")
 
 # Always exclude these Java project directories
 DEFAULT_DIR_EXCLUDES=("target" "build" ".gradle" ".idea" ".settings" "bin" "out")
@@ -31,6 +39,9 @@ Usage: $(basename "$0") [options] <source_directory>
 Options:
     -o, --output <n>         Base name for zip file (default: source directory name)
     -e, --exclude <pattern>     Directory or file pattern to exclude (can be used multiple times)
+    --no-git                    Exclude .git directory
+    --no-binary                 Exclude non-ASCII/binary files (images, fonts, media, etc.)
+    --text-only                 Shorthand for --no-git --no-binary
     -h, --help                  Show this help message
 
 Examples:
@@ -43,17 +54,27 @@ Examples:
     $(basename "$0") -e node_modules -e "*.zip" -e "*.log" .
         Excludes directories and file patterns (note the quotes around wildcards)
     
-    $(basename "$0") -o backup -e .git -e .github -e .idea -e "*.tmp" ~/myproject
+    $(basename "$0") -o backup -e .github -e "*.tmp" ~/myproject
         Creates: backup_20251031_143022.zip
+
+    $(basename "$0") --text-only .
+        Exclude .git and all binary/non-ASCII files
+
+    $(basename "$0") --no-git --no-binary -e logs .
+        Combine flags with additional excludes
 
 Notes:
     - Quote wildcard patterns to prevent shell expansion: -e "*.zip"
     - Patterns can match files or directories
     - The script automatically handles the current directory (.) correctly
     - Source directory can be specified before or after options
-    - Always excluded dirs: .git, node_modules, target, build, .gradle, .idea, .settings, bin, out
+    - Always excluded dirs: node_modules, target, build, .gradle, .idea, .settings, bin, out
     - Always excluded files: *.class, *.jar, *.war, *.ear, *.o, *.so, *.dylib, *.a, *.dll, *.exe,
       *.pyc, *.pyo, *.zip, *.tar, *.gz, *.bz2, *.xz, *.rar, *.7z
+    - --no-binary adds: *.png, *.jpg, *.jpeg, *.gif, *.bmp, *.ico, *.svg, *.webp, *.tiff, *.tif,
+      *.mp3, *.mp4, *.avi, *.mov, *.wmv, *.flv, *.wav, *.ogg, *.webm, *.pdf, *.doc, *.docx,
+      *.xls, *.xlsx, *.ppt, *.pptx, *.ttf, *.otf, *.woff, *.woff2, *.eot, *.db, *.sqlite,
+      *.sqlite3, *.bin, *.dat, *.enc, *.p12, *.pfx, *.pem, *.der, .DS_Store
 
 The script will create a uniquely named zip file with a timestamp:
     <basename>_YYYYMMDD_HHMMSS.zip
@@ -79,6 +100,19 @@ while [[ $# -gt 0 ]]; do
             fi
             EXCLUDE_PATTERNS+=("$2")
             shift 2
+            ;;
+        --no-git)
+            SKIP_GIT=true
+            shift
+            ;;
+        --no-binary)
+            SKIP_BINARY=true
+            shift
+            ;;
+        --text-only)
+            SKIP_GIT=true
+            SKIP_BINARY=true
+            shift
             ;;
         -h|--help)
             usage
@@ -123,6 +157,16 @@ fi
 # Generate unique filename with timestamp
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 ZIP_FILE="${BASE_NAME}_${TIMESTAMP}.zip"
+
+# Add flag-based excludes
+if [[ "$SKIP_GIT" == true ]]; then
+    EXCLUDE_PATTERNS+=(".git")
+fi
+if [[ "$SKIP_BINARY" == true ]]; then
+    for pattern in "${BINARY_FILE_EXCLUDES[@]}"; do
+        EXCLUDE_PATTERNS+=("$pattern")
+    done
+fi
 
 # Add default excludes to the patterns
 for pattern in "${DEFAULT_EXCLUDES[@]}"; do

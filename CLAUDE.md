@@ -1,0 +1,1 @@
+I use Claude on this machine because I am unable to run Claude on my MacOS work machine. All modifications to file under the ~/projects dir are being scp'd to a work host (MacBook). All changes to files in ~/projects/** should take that into consideration.
